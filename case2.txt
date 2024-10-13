@@ -1,0 +1,10 @@
+lw 0 1 10
+lw 0 2 11
+lw 0 3 12
+noop
+add 2 1 2
+noop
+noop
+beq 2 0 1
+beq 0 0 -5
+halt
