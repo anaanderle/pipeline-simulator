@@ -1,16 +1,16 @@
+# Variaveis de estatisticas
 invalidInstructions = 0
 totalInstructions = 0
 
+# Variaveis do processador
 predictionCounter = {}
 predictionType = None
-
-# Initializes memory
 memory = [0] * 256
-
 registers = [0] * 32
 registers[0] = 0
 pc = 0
 
+# Valores de cada etapa do processo
 resultIfId = {
         "instruction": "noop",
         "pc": 0,
@@ -43,23 +43,25 @@ resultMemWb = {
         "op": "noop",
 }
 
+# Leitura de arquivo
 def fileRead(fileName):
     global memory
     with open(fileName, 'r') as file:
         for index, line in enumerate(file):
             memory[index] = line.strip()
 
+# Busca instrucoes
 def fetch():
         global pc
         global resultIfId
         global memory
         global totalInstructions
 
-        # Fetch instruction
         resultIfId["instruction"] = memory[resultIfId["pc"]]
         resultIfId["pc"] = resultIfId["nextPc"]
         totalInstructions += 1
 
+# Decodifica instrucoes
 def decode(internalPc: int, instruction: str):
         global resultIdEx
         global registers
@@ -107,12 +109,13 @@ def decode(internalPc: int, instruction: str):
         elif op == "add":
                resultIdEx["dest"] = offset
 
+# Executa
 def exec(internalPc: int, valA: int, valB: int, offset: int, dest: int, op: str):
         global resultExMem
         global resultIfId
         global resultIdEx
 
-        # Execute instruction by op
+        # Executa instrucao por operacao
         if op == "lw":
                 result = valA + offset
         elif op == "add":
@@ -139,6 +142,7 @@ def exec(internalPc: int, valA: int, valB: int, offset: int, dest: int, op: str)
                 "pc": internalPc - 1,
         }
 
+# Executa operacoes na memoria
 def execMem(result: int, dest: int, op: str):
         global resultMemWb
         mdata = None
@@ -153,6 +157,7 @@ def execMem(result: int, dest: int, op: str):
                 "op": op,
         }
 
+# Escreve nos registradores
 def write(result: int, mdata: int, dest: int, op: str):
         global registers
 
@@ -165,12 +170,14 @@ def write(result: int, mdata: int, dest: int, op: str):
 
 instructionCounter = 0
 
+# Incrementa os contadores da tabela de predição
 def handlePredictionCounter():
         global predictionCounter
         global resultExMem
 
         predictionCounter[resultExMem["pc"]] = 1 if resultExMem["eq"] else 0
 
+# Lida com a predicao estatica apos ela ter sido feita
 def handleStaticPrediction():
         global resultExMem
         global resultIfId
@@ -188,6 +195,7 @@ def handleStaticPrediction():
         else:
                 resultIfId["nextPc"] = resultIfId["nextPc"] + 1
 
+# Lida com a tomada de decisao ao verificar um beq
 def handleDynamicTakeAction():
         global resultIdEx
         global predictionCounter
@@ -204,6 +212,7 @@ def handleDynamicTakeAction():
         else:
                 resultIfId["nextPc"] = resultIfId["nextPc"] + 1
 
+# Lida com a predicao dinamica apos ela ter sido feita
 def handleDynamicPredictionValidation():
         global predictionCounter
         global resultExMem
@@ -233,6 +242,7 @@ def handleDynamicPredictionValidation():
         else:
                 handleDynamicTakeAction()
 
+# Funciona como o clock do processador
 def clock():
         global pc
         global resultExMem
@@ -260,9 +270,11 @@ def clock():
         else:
                 resultIfId["nextPc"] = resultIfId["nextPc"] + 1
 
+# Inicializa as configuracoes
 predictionType = input("Selecione um tipo de predição (static, dynamic ou no prediction): ")
 fileToRead = input("Digite o nome do arquivo para ser lido: ")
 
+# Inicializa a memoria
 while True:
         memoryInput = input("Digite a posição da memória para preencher (para sair, digite um valor inválido de memória): ")
 
@@ -288,6 +300,7 @@ def printDynamicPrediction():
                 for key, value in predictionCounter.items():
                         print(key, "  |  ", value)
 
+# Processa ate chegar em um halt
 while resultMemWb["op"] != "halt":
         clock()
 
