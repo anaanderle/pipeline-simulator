@@ -3,6 +3,10 @@
 instrucoesInvalidas = 0
 instrucoesTotais = 0
 
+contadorPredicao = {
+}
+predicao = "dinamica"
+
 # Incializa a memória com 256 posições
 memoria = [0] * 256
 
@@ -42,6 +46,7 @@ initialExMem = {
         "valB": 0,
         "dest": None,
         "op": "noop",
+        "pc": 0,
 }
 
 initialMemWb = {
@@ -146,6 +151,7 @@ def executa(executaPc: int, valA: int, valB: int, offset: int, dest: int, op: st
                 "valB": valB,
                 "dest": dest,
                 "op": op,
+                "pc": executaPc - 1,
         }
 
 def executaMemoria(result: int, dest: int, op: str):
@@ -180,24 +186,9 @@ def clock():
         global initialIfId
         global initialMemWb
         global instrucoesInvalidas
-
-        escreve(initialMemWb["result"], initialMemWb["mdata"], initialMemWb["dest"], initialMemWb["op"])
-        executaMemoria(initialExMem["result"], initialExMem["dest"], initialExMem["op"])
-        executa(initialIdEx["pc"], initialIdEx["valA"], initialIdEx["valB"], initialIdEx["offset"], initialIdEx["dest"], initialIdEx["op"])
-        decodifica(initialIfId["pc"], initialIfId["instrucao"])
-        busca()
-
-        if initialExMem["op"] == "beq" and initialExMem["eq"]:
-                # uma misprediction ocorreu
-                initialIfId["instrucao"] = "noop"
-                initialIfId["nextPc"] = initialExMem["target"]
-                initialIdEx["valA"] = 0
-                initialIdEx["valB"] = 0
-                initialIdEx["dest"] = None
-                initialIdEx["op"] = "noop"
-                instrucoesInvalidas += 2
-        else:
-                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+        global contadorPredicao
+        global predicao
+        global contadorPredicao
 
         print("\n\n\n")
         print("### CICLO ", count, " ###")
@@ -206,6 +197,83 @@ def clock():
         print(initialExMem)
         print(initialMemWb)
         print(registradores)
+        print(contadorPredicao)
+
+        escreve(initialMemWb["result"], initialMemWb["mdata"], initialMemWb["dest"], initialMemWb["op"])
+        executaMemoria(initialExMem["result"], initialExMem["dest"], initialExMem["op"])
+        executa(initialIdEx["pc"], initialIdEx["valA"], initialIdEx["valB"], initialIdEx["offset"], initialIdEx["dest"], initialIdEx["op"])
+        decodifica(initialIfId["pc"], initialIfId["instrucao"])
+        busca()
+
+        if predicao == None:
+                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+        elif predicao == "estatica":
+                if initialExMem["op"] == "beq" and initialExMem["eq"]:
+                        # uma misprediction ocorreu
+                        initialIfId["instrucao"] = "noop"
+                        initialIfId["nextPc"] = initialExMem["target"]
+                        initialIdEx["valA"] = 0
+                        initialIdEx["valB"] = 0
+                        initialIdEx["dest"] = None
+                        initialIdEx["op"] = "noop"
+                        instrucoesInvalidas += 2
+                else:
+                        initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+        else:
+                # predicao dinamica
+
+
+                # verificar se a ação tomada foi correta
+                # se nao for correta, eu coloco os valores corretos
+                if initialExMem["op"] == "beq":
+                        acaoTomadaAnteriormente = contadorPredicao.get(initialExMem["pc"]) if contadorPredicao.get(initialExMem["pc"]) != None else 0
+
+                        if acaoTomadaAnteriormente == 0 and initialExMem["eq"]:
+                                initialIfId["instrucao"] = "noop"
+                                initialIfId["nextPc"] = initialExMem["target"]
+                                initialIdEx["valA"] = 0
+                                initialIdEx["valB"] = 0
+                                initialIdEx["dest"] = None
+                                initialIdEx["op"] = "noop"
+                                instrucoesInvalidas += 2
+                        elif acaoTomadaAnteriormente == 1 and not initialExMem["eq"]:
+                                initialIfId["instrucao"] = "noop"
+                                initialIfId["nextPc"] = initialExMem["pc"] + 1
+                                initialIdEx["valA"] = 0
+                                initialIdEx["valB"] = 0
+                                initialIdEx["dest"] = None
+                                initialIdEx["op"] = "noop"
+                                instrucoesInvalidas += 2
+                        else:
+                                # tomando ação
+                                if initialIdEx["op"] == "beq":
+                                        acaoTomadaAnteriormente = contadorPredicao.get(initialIdEx["pc"] - 1)
+
+                                        if acaoTomadaAnteriormente == 1:
+                                                initialIfId["instrucao"] = "noop"
+                                                initialIfId["nextPc"] = initialIdEx["offset"] + initialIdEx["pc"]
+                                        else:
+                                                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+                                else:
+                                        initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+
+                        # se a instrução do ex/mem é beq, verifica o eq, pra setar o valor no hash map
+                        contadorPredicao[initialExMem["pc"]] = 1 if initialExMem["eq"] else 0
+
+                else:
+                        # tomando ação
+                        if initialIdEx["op"] == "beq":
+                                acaoTomadaAnteriormente = contadorPredicao.get(initialIdEx["pc"] - 1)
+
+                                if acaoTomadaAnteriormente == 1:
+                                        initialIfId["instrucao"] = "noop"
+                                        initialIfId["nextPc"] = initialIdEx["offset"] + initialIdEx["pc"]
+                                else:
+                                        initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+                        else:
+                                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
+
+
 
 
 file_read("case2.txt")
@@ -224,3 +292,4 @@ while initialMemWb["op"] != "halt":
 
 print("Instruções totais: ", instrucoesTotais)
 print("Instruções inválidas: ", instrucoesInvalidas)
+print("Branch: ", contadorPredicao)
