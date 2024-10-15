@@ -1,211 +1,309 @@
-memoria = [0] * 256
+invalidInstructions = 0
+totalInstructions = 0
 
-# case 1
-memoria[16] = -1
-memoria[17] = 10
-memoria[18] = 1
+predictionCounter = {}
+predictionType = None
 
-# case 2
-# memoria[10] = -1
-# memoria[11] = 10
-# memoria[12] = 1
+# Initializes memory
+memory = [0] * 256
 
-registradores = [0] * 32
-registradores[0] = 0
+registers = [0] * 32
+registers[0] = 0
 pc = 0
 
-initialIfId = {
-        "instrucao": "noop",
+resultIfId = {
+        "instruction": "noop",
         "pc": 0,
-        "nextPc": 1
+        "nextPc": 1,
 }
 
-initialIdEx = {
+resultIdEx = {
         "pc": 0,
         "valA": 0,
         "valB": 0,
         "offset": 0,
         "dest": None,
-        "op": "noop"
+        "op": "noop",
 }
 
-initialExMem = {
+resultExMem = {
         "target": 0,
         "eq": False,
         "result": 0,
         "valB": 0,
         "dest": None,
-        "op": "noop"
+        "op": "noop",
+        "pc": 0,
 }
 
-initialMemWb = {
+resultMemWb = {
         "result": 0,
         "mdata": None,
         "dest": None,
         "op": "noop",
 }
 
-def file_read(nomeArquivo):
-        global memoria
-        arquivo = open(nomeArquivo, 'r')
+def fileRead(fileName):
+    global memory
+    with open(fileName, 'r') as file:
+        for index, line in enumerate(file):
+            memory[index] = line.strip()
 
-        for index, linha in enumerate(arquivo):
-                memoria[index] = linha.removesuffix("\n")
-
-def busca():
+def fetch():
         global pc
-        global initialIfId
-        global memoria
+        global resultIfId
+        global memory
+        global totalInstructions
 
+        # Fetch instruction
+        resultIfId["instruction"] = memory[resultIfId["pc"]]
+        resultIfId["pc"] = resultIfId["nextPc"]
+        totalInstructions += 1
 
-        initialIfId["instrucao"] = memoria[initialIfId["pc"]]
-        initialIfId["pc"] = initialIfId["nextPc"]
+def decode(internalPc: int, instruction: str):
+        global resultIdEx
+        global registers
 
-        if (initialExMem["op"] == "beq" and initialExMem["eq"]):
-                initialIfId["nextPc"] = initialExMem["target"]
-        else:
-                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
-
-
-
-def decodifica(decodificaPc: int, instrucao: str):
-        global initialIdEx
-        if(not isinstance(instrucao, str)):
-                initialIdEx = {
-                        "pc": decodificaPc,
+        if not isinstance(instruction, str):
+                resultIdEx = {
+                        "pc": internalPc,
                         "valA": 0,
                         "valB": 0,
                         "offset": 0,
                         "dest": None,
-                        "op": "noop"
+                        "op": None,
                 }
                 return
-        instrucaoSplited: list[str] = instrucao.split(" ")
-        instrucaoLen = len(instrucaoSplited)
-        op: str = instrucaoSplited[0]
-        valAIndex: int = None if(instrucaoLen < 2) else int(instrucaoSplited[1])
-        valBIndex: int = None if(instrucaoLen < 3) else int(instrucaoSplited[2])
-        offset: int = None if(instrucaoLen < 4) else int(instrucaoSplited[3])
+        
+        splitedInstruction = instruction.strip().split(" ")
+        instructionLen = len(splitedInstruction)
+        op = splitedInstruction[0]
+        valAIndex = int(splitedInstruction[1]) if instructionLen > 1 else None
+        valBIndex = int(splitedInstruction[2]) if instructionLen > 2 else None
+        offset = int(splitedInstruction[3]) if instructionLen > 3 else 0
 
-
-        if(op == "lw"):
-                initialIdEx = {
-                        "pc": decodificaPc,
-                        "valA": registradores[valAIndex],
-                        "valB": registradores[valBIndex],
-                        "offset": offset,
-                        "dest": None if(instrucaoLen < 3) else int(instrucaoSplited[2]),
-                        "op": op
-                }
-                return
-
-
-        if(op == "add"):
-                initialIdEx = {
-                        "pc": decodificaPc,
-                        "valA": registradores[valAIndex],
-                        "valB": registradores[valBIndex],
-                        "offset": offset,
-                        "dest": None if(instrucaoLen < 4) else int(instrucaoSplited[3]),
-                        "op": op
-                }
-                return
-
-        if (op == "noop" or op == "halt"):
-                initialIdEx = {
-                        "pc": decodificaPc,
+        if op == "noop" or op == "halt":
+                resultIdEx = {
+                        "pc": internalPc,
                         "valA": 0,
                         "valB": 0,
                         "offset": 0,
                         "dest": None,
-                        "op": op
+                        "op": op,
                 }
                 return
 
-        if (op == "beq"):
-                initialIdEx = {
-                        "pc": decodificaPc,
-                        "valA": registradores[valAIndex],
-                        "valB": registradores[valBIndex],
-                        "offset": offset,
-                        "dest": None,
-                        "op": op
-                }
-                return
-
-def executa(executaPc: int, valA: int, valB: int, offset: int, dest: int, op: str):
-        global initialExMem
-        global pc
-        switch = {
-                "lw": valA + offset,
-                "noop": 0,
-                "add": valA + valB,
-                "sub": valA - valB,
-                "beq": valA + valB,
-                "halt": 0
+        resultIdEx = {
+                "pc": internalPc,
+                "valA": registers[valAIndex] if valAIndex is not None else 0,
+                "valB": registers[valBIndex] if valBIndex is not None else 0,
+                "offset": offset,
+                "dest": None,
+                "op": op,
         }
 
-        initialExMem = {
-                "target": offset + executaPc,
-                "eq": valA == valB,
-                "result": switch[op],
+        if op == "lw":
+                resultIdEx["dest"] = valBIndex
+        elif op == "add":
+               resultIdEx["dest"] = offset
+
+def exec(internalPc: int, valA: int, valB: int, offset: int, dest: int, op: str):
+        global resultExMem
+        global resultIfId
+        global resultIdEx
+
+        # Execute instruction by op
+        if op == "lw":
+                result = valA + offset
+        elif op == "add":
+                result = valA + valB
+        elif op == "sub": 
+                result = valA - valB
+        elif op == "beq":
+                result = 0
+        elif op == "halt":
+                result = 0
+        else:
+                result = 0
+
+        eq = (valA == valB)
+        target = internalPc + offset
+
+        resultExMem = {
+                "target": target,
+                "eq": eq,
+                "result": result,
                 "valB": valB,
                 "dest": dest,
-                "op": op
+                "op": op,
+                "pc": internalPc - 1,
         }
 
-def executaMemoria(result: int, dest: int, op: str):
-        global initialMemWb
+def execMem(result: int, dest: int, op: str):
+        global resultMemWb
         mdata = None
 
-        if(op == "lw"):
-                mdata = memoria[result]
+        if op == "lw":
+                mdata = memory[result]
 
-        initialMemWb = {
+        resultMemWb = {
                 "result": result,
                 "mdata": mdata,
                 "dest": dest,
                 "op": op,
         }
 
+def write(result: int, mdata: int, dest: int, op: str):
+        global registers
 
-def escreve(result: int, mdata: int, dest: int, op: str):
-        if(op == "lw"):
-                registradores[dest] = mdata
+        if op == "lw":
+                registers[dest] = mdata
                 return
 
-        if (op == "add"):
-                registradores[dest] = result
+        if op == "add":
+                registers[dest] = result
 
-count = 1
+instructionCounter = 0
+
+def handlePredictionCounter():
+        global predictionCounter
+        global resultExMem
+
+        predictionCounter[resultExMem["pc"]] = 1 if resultExMem["eq"] else 0
+
+def handleStaticPrediction():
+        global resultExMem
+        global resultIfId
+        global resultIdEx
+        global invalidInstructions
+
+        if resultExMem["op"] == "beq" and resultExMem["eq"]:
+                resultIfId["instruction"] = "noop"
+                resultIfId["nextPc"] = resultExMem["target"]
+                resultIdEx["valA"] = 0
+                resultIdEx["valB"] = 0
+                resultIdEx["dest"] = None
+                resultIdEx["op"] = "noop"
+                invalidInstructions += 2
+        else:
+                resultIfId["nextPc"] = resultIfId["nextPc"] + 1
+
+def handleDynamicTakeAction():
+        global resultIdEx
+        global predictionCounter
+        global resultIfId
+
+        if resultIdEx["op"] == "beq":
+                oldTakenAction = predictionCounter.get(resultIdEx["pc"] - 1)
+
+                if oldTakenAction == 1:
+                        resultIfId["instruction"] = "noop"
+                        resultIfId["nextPc"] = resultIdEx["offset"] + resultIdEx["pc"]
+                else:
+                        resultIfId["nextPc"] = resultIfId["nextPc"] + 1
+        else:
+                resultIfId["nextPc"] = resultIfId["nextPc"] + 1
+
+def handleDynamicPredictionValidation():
+        global predictionCounter
+        global resultExMem
+        global resultIfId
+        global resultIdEx
+        global invalidInstructions
+
+        oldTakenAction = predictionCounter.get(resultExMem["pc"]) if predictionCounter.get(
+                resultExMem["pc"]) != None else 0
+
+        if oldTakenAction == 0 and resultExMem["eq"]:
+                resultIfId["instruction"] = "noop"
+                resultIfId["nextPc"] = resultExMem["target"]
+                resultIdEx["valA"] = 0
+                resultIdEx["valB"] = 0
+                resultIdEx["dest"] = None
+                resultIdEx["op"] = "noop"
+                invalidInstructions += 2
+        elif oldTakenAction == 1 and not resultExMem["eq"]:
+                resultIfId["instruction"] = "noop"
+                resultIfId["nextPc"] = resultExMem["pc"] + 1
+                resultIdEx["valA"] = 0
+                resultIdEx["valB"] = 0
+                resultIdEx["dest"] = None
+                resultIdEx["op"] = "noop"
+                invalidInstructions += 2
+        else:
+                handleDynamicTakeAction()
 
 def clock():
         global pc
-        global initialExMem
-        escreve(initialMemWb["result"], initialMemWb["mdata"], initialMemWb["dest"], initialMemWb["op"])
-        executaMemoria(initialExMem["result"], initialExMem["dest"], initialExMem["op"])
-        executa(initialIdEx["pc"], initialIdEx["valA"], initialIdEx["valB"], initialIdEx["offset"], initialIdEx["dest"], initialIdEx["op"])
-        decodifica(initialIfId["pc"], initialIfId["instrucao"])
-        busca()
+        global resultExMem
+        global resultIdEx
+        global resultIfId
+        global resultMemWb
+        global invalidInstructions
+        global predictionCounter
+        global predictionType
+
+        write(resultMemWb["result"], resultMemWb["mdata"], resultMemWb["dest"], resultMemWb["op"])
+        execMem(resultExMem["result"], resultExMem["dest"], resultExMem["op"])
+        exec(resultIdEx["pc"], resultIdEx["valA"], resultIdEx["valB"], resultIdEx["offset"], resultIdEx["dest"], resultIdEx["op"])
+        decode(resultIfId["pc"], resultIfId["instruction"])
+        fetch()
+
+        if predictionType == "static":
+                handleStaticPrediction()
+        elif predictionType == "dynamic":
+                if resultExMem["op"] == "beq":
+                        handleDynamicPredictionValidation()
+                        handlePredictionCounter()
+                else:
+                        handleDynamicTakeAction()
+        else:
+                resultIfId["nextPc"] = resultIfId["nextPc"] + 1
+
+predictionType = input("Selecione um tipo de predição (static, dynamic ou no prediction): ")
+fileToRead = input("Digite o nome do arquivo para ser lido: ")
+
+while True:
+        memoryInput = input("Digite a posição da memória para preencher (para sair, digite um valor inválido de memória): ")
+
+        if int(memoryInput) < 0 or int(memoryInput) > 255:
+                break
+
+        memoryValue = input("Digite o valor para preencher na posição acima: ")
+
+        memory[int(memoryInput)] = int(memoryValue)
+
+fileRead(fileToRead)
+
+print(resultIfId)
+print(resultIdEx)
+print(resultExMem)
+print(resultMemWb)
+print(registers)
+
+def printDynamicPrediction():
+        if predictionType == "dynamic":
+                print("Tabela de predição de 1 bit: ")
+                print("PC  |  Última predição: ")
+                for key, value in predictionCounter.items():
+                        print(key, "  |  ", value)
+
+while resultMemWb["op"] != "halt":
+        clock()
 
         print("\n\n\n")
-        print("### CICLO ", count, " ###")
-        print(initialIfId)
-        print(initialIdEx)
-        print(initialExMem)
-        print(initialMemWb)
-        print(registradores)
+        print("### INSTRUÇÃO ", instructionCounter, " ###")
+        print("IF/ID: instruction: ", resultIfId["instruction"], " pc: ", resultIfId["pc"])
+        print("ID/EX: pc: ", resultIdEx["pc"], " valA: ", resultIdEx["valA"], " valB: ", resultIdEx["valB"], " offset: ", resultIdEx["offset"], " dest: ", resultIdEx["dest"], " op: ", resultIdEx["op"])
+        print("EX/MEM: target: ", resultExMem["target"], " eq: ", resultExMem["eq"], " result: ", resultExMem["result"], " valB: ", resultExMem["valB"], " dest: ", resultExMem["dest"], " op: ", resultExMem["op"], " pc: ")
+        print("MEM/WB: result: ", resultMemWb["result"], " mdata: ", resultMemWb["mdata"], " dest: ", resultMemWb["dest"], " op: ", resultMemWb["op"])
+        print("Registradores: ", registers)
+        printDynamicPrediction()
 
+        instructionCounter += 1
 
-file_read("case1.txt")
-
-print(initialIfId)
-print(initialIdEx)
-print(initialExMem)
-print(initialMemWb)
-
-while initialMemWb["op"] != "halt":
-        clock()
-        count += 1
-
-
+print("\n\n\n")
+print("RESULTADOS FINAIS")
+print("Instruções totais: ", totalInstructions)
+print("Instruções inválidas: ", invalidInstructions)
+printDynamicPrediction()
