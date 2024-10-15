@@ -1,17 +1,20 @@
 # Date: 01/10/2024
 
+instrucoesInvalidas = 0
+instrucoesTotais = 0
+
 # Incializa a memória com 256 posições
 memoria = [0] * 256
 
 # case 1
-memoria[16] = -1
-memoria[17] = 10
-memoria[18] = 1
+# memoria[16] = -1
+# memoria[17] = 10
+# memoria[18] = 1
 
 # case 2
-# memoria[10] = -1
-# memoria[11] = 10
-# memoria[12] = 1
+memoria[10] = -1
+memoria[11] = 10
+memoria[12] = 1
 
 registradores = [0] * 32
 registradores[0] = 0
@@ -21,7 +24,6 @@ initialIfId = {
         "instrucao": "noop",
         "pc": 0,
         "nextPc": 1,
-        "valid": True
 }
 
 initialIdEx = {
@@ -31,7 +33,6 @@ initialIdEx = {
         "offset": 0,
         "dest": None,
         "op": "noop",
-        "valid": True
 }
 
 initialExMem = {
@@ -41,7 +42,6 @@ initialExMem = {
         "valB": 0,
         "dest": None,
         "op": "noop",
-        "valid": True
 }
 
 initialMemWb = {
@@ -49,7 +49,6 @@ initialMemWb = {
         "mdata": None,
         "dest": None,
         "op": "noop",
-        "valid": True
 }
 
 def file_read(nomeArquivo):
@@ -63,26 +62,16 @@ def busca():
         global pc
         global initialIfId
         global memoria
+        global instrucoesTotais
 
-        if initialIfId["valid"]:
-               # intrucao fetch 
-                initialIfId["instrucao"] = memoria[initialIfId["pc"]]
-                initialIfId["pc"] = initialIfId["nextPc"]
-
-                if initialExMem["op"] == "beq" and initialExMem["eq"]:
-                        # a instrução é um branch e a condição é verdadeira
-                        initialIfId["nextPc"] = initialExMem["target"]
-                else:
-                        initialIfId["nextPc"] = initialIfId["nextPc"] + 1
-        else:
-               initialIfId["instrucao"] = "noop"
-               initialIfId["valid"] = True # Resetar a flag para a próxima instrução
-
-
+        # instrucao fetch
+        initialIfId["instrucao"] = memoria[initialIfId["pc"]]
+        initialIfId["pc"] = initialIfId["nextPc"]
+        instrucoesTotais += 1
 
 def decodifica(decodificaPc: int, instrucao: str):
         global initialIdEx
-        if not isinstance(instrucao, str) or instrucao == "noop":
+        if not isinstance(instrucao, str):
                # nenhuma instrucao para decodificar
                 initialIdEx = {
                         "pc": decodificaPc,
@@ -90,8 +79,7 @@ def decodifica(decodificaPc: int, instrucao: str):
                         "valB": 0,
                         "offset": 0,
                         "dest": None,
-                        "op": "noop",
-                        "valid": False
+                        "op": None,
                 }
                 return
         
@@ -102,6 +90,18 @@ def decodifica(decodificaPc: int, instrucao: str):
         valBIndex = int(instrucaoSplited[2]) if instrucaoLen > 2 else None
         offset = int(instrucaoSplited[3]) if instrucaoLen > 3 else 0
 
+        if op == "noop" or op == "halt":
+               # nenhuma instrucao para decodificar
+                initialIdEx = {
+                        "pc": decodificaPc,
+                        "valA": 0,
+                        "valB": 0,
+                        "offset": 0,
+                        "dest": None,
+                        "op": op,
+                }
+                return
+
         initialIdEx = {
                 "pc": decodificaPc,
                 "valA": registradores[valAIndex] if valAIndex is not None else 0,
@@ -109,7 +109,6 @@ def decodifica(decodificaPc: int, instrucao: str):
                 "offset": offset,
                 "dest": None,
                 "op": op,
-                "valid": True
         }
 
         if op == "lw":
@@ -120,18 +119,9 @@ def decodifica(decodificaPc: int, instrucao: str):
 
 def executa(executaPc: int, valA: int, valB: int, offset: int, dest: int, op: str):
         global initialExMem
-        if not initialIdEx["valid"]:
-                initialExMem = {
-                        "target": 0,
-                        "eq": False,
-                        "result": 0,
-                        "valB": 0,
-                        "dest": None,
-                        "op": "noop",
-                        "valid": False
-                }
-                return
-        
+        global initialIfId
+        global initialIdEx
+
         # executa a instrução baseado no op
         if op == "lw":
                 result = valA + offset
@@ -140,7 +130,7 @@ def executa(executaPc: int, valA: int, valB: int, offset: int, dest: int, op: st
         elif op == "sub": 
                 result = valA - valB
         elif op == "beq":
-               result = 0 
+                result = 0
         elif op == "halt":
                 result = 0
         else:
@@ -156,67 +146,58 @@ def executa(executaPc: int, valA: int, valB: int, offset: int, dest: int, op: st
                 "valB": valB,
                 "dest": dest,
                 "op": op,
-                "valid": True
         }
-
-        # cuidar da instrução de branch
-        if op == "beq":
-               if eq:
-                      # uma misprediction ocorreu
-                      initialIfId["valid"] = False
-                      initialIdEx["valid"] = False
-                      # atualiza o pc para o target
-                      initialIfId["nextPc"] = target
 
 def executaMemoria(result: int, dest: int, op: str):
         global initialMemWb
-        if not initialExMem["valid"]:
-                initialMemWb = {
-                        "result": 0,
-                        "mdata": None,
-                        "dest": None,
-                        "op": "noop",
-                        "valid": False
-                }
-                return
-
         mdata = None
 
         if op == "lw":
                 mdata = memoria[result]
-        elif op == "sw":
-                memoria[result] = registradores[dest]
 
         initialMemWb = {
                 "result": result,
                 "mdata": mdata,
                 "dest": dest,
                 "op": op,
-                "valid": True
         }
 
 
 def escreve(result: int, mdata: int, dest: int, op: str):
-        if not initialMemWb["valid"]:
+        if (op == "lw"):
+                registradores[dest] = mdata
                 return
-        
-        if op == "lw":
-                registradores[dest] = int(mdata)
-        elif op == "add" or op == "sub":
+
+        if (op == "add"):
                 registradores[dest] = result
-        
-        # para o resto das instruções não é necessário escrever no registrador
 
 count = 1
 
 def clock():
         global pc
         global initialExMem
+        global initialIdEx
+        global initialIfId
+        global initialMemWb
+        global instrucoesInvalidas
+
         escreve(initialMemWb["result"], initialMemWb["mdata"], initialMemWb["dest"], initialMemWb["op"])
         executaMemoria(initialExMem["result"], initialExMem["dest"], initialExMem["op"])
         executa(initialIdEx["pc"], initialIdEx["valA"], initialIdEx["valB"], initialIdEx["offset"], initialIdEx["dest"], initialIdEx["op"])
         decodifica(initialIfId["pc"], initialIfId["instrucao"])
         busca()
+
+        if initialExMem["op"] == "beq" and initialExMem["eq"]:
+                # uma misprediction ocorreu
+                initialIfId["instrucao"] = "noop"
+                initialIfId["nextPc"] = initialExMem["target"]
+                initialIdEx["valA"] = 0
+                initialIdEx["valB"] = 0
+                initialIdEx["dest"] = None
+                initialIdEx["op"] = "noop"
+                instrucoesInvalidas += 2
+        else:
+                initialIfId["nextPc"] = initialIfId["nextPc"] + 1
 
         print("\n\n\n")
         print("### CICLO ", count, " ###")
@@ -227,9 +208,9 @@ def clock():
         print(registradores)
 
 
-file_read("case1.txt")
+file_read("case2.txt")
 
-#Inicializa a pipeline
+#Valores iniciais
 print(initialIfId)
 print(initialIdEx)
 print(initialExMem)
@@ -241,3 +222,5 @@ while initialMemWb["op"] != "halt":
         count += 1
 
 
+print("Instruções totais: ", instrucoesTotais)
+print("Instruções inválidas: ", instrucoesInvalidas)
