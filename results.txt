@@ -1,0 +1,25 @@
+Case 1 com predição estática
+Instruções: 114
+Instruções inválidas: 20
+Taxa de erros 17,54%
+
+Case 1 com predição dinâmica
+Instruções: 106
+Instruções inválidas: 4
+Taxa de erros 3,77%
+
+Melhoria de 78,5% na taxa de erros
+Melhoria de 7,00% no número de instruções executadas
+
+Case 2 com predição estática
+Instruções: 87
+Instruções inválidas: 20
+Taxa de erros 22,99%
+
+Case 2 com predição dinâmica
+Instruções: 79
+Instruções inválidas: 4
+Taxa de erros 5,06%
+
+Melhoria de 77,99% na taxa de erros
+Melhoria de 9,19% no número de instruções executadas
