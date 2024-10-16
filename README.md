@@ -9,8 +9,6 @@
 ## Descrição do Projeto
 Simulador de pipeline de processador com cinco estágios. O objetivo é demonstrar a melhoria de desempenho utilizando mecanismos de predição de desvios.
 
----
-
 ### Primeira Entrega: Predição Estática
 Implementação da predição estática, assumindo que desvios não são tomados.
 
